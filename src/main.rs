@@ -1,59 +1,90 @@
 use std::io;
 use std::io::prelude::*;
 use std::cmp;
+use std::mem;
+use std::ptr;
+use std::process;
 
 
-//SIMD in rust, for extra snabb skit
-
-//You complete the first 6 tests if you do not sort
-
-//Fram till halva är den relativt sorterad...
+pub const BLOCK_SIZE: usize = 128;
 
 
-//Får runtime error på tredje testet
+//Use radix sort, perhaps
 
-pub const block_size: usize = 32;
+//Pattern matching
 
+
+
+//Har behövt kolla på så mycket C och C++, mina ögon blöder :(
 fn main() {
 
     let mut line = String::with_capacity(500_000); // FIX ME!
 
-    /*io::stdin().lock().read_to_string(&mut line);
+    io::stdin().lock().read_to_string(&mut line).unwrap();
     let mut values: Vec<i32> = Vec::with_capacity(line.len());
     values = line // PRE ALLOCATE!
         .split_whitespace()
         .skip(1) // <-- SKIP LENGTH PARAM
         .map(|_value| _value.parse::<i32>().unwrap())
-        .collect();*/
+        .collect();
 
-    let mut values: Vec<i32> = vec![-927, 2333, 2323, 1912, -1068, 3208, -1487, -705, -2409, -743, -1206, 3023, -3736, -652, -449, 2099, -3587, 3037, -2326, 817, -1616, -1978, -2155, -1278, -4061, -211, 3154, -4419, 2167, -1526, -1700, -1755, -186, -2027, 1863, 875, -2045, -2405, 2984, 2118, -4585, 1303, 3578, -351, -1451, -718, 3115, -3188, -1036, -1186];
-    let mut values2: Vec<i32> = vec![-927, 2333, 2323, 1912, -1068, 3208, -1487, -705, -2409, -743, -1206, 3023, -3736, -652, -449, 2099, -3587, 3037, -2326, 817, -1616, -1978, -2155, -1278, -4061, -211, 3154, -4419, 2167, -1526, -1700, -1755, -186, -2027, 1863, 875, -2045, -2405, 2984, 2118, -4585, 1303, 3578, -351, -1451, -718, 3115, -3188, -1036, -1186];
+    //let mut values: Vec<i32> = vec![-927, 2333, 2323, 1912, -1068, 3208, -1487, -705, -2409, -743, -1206, 3023, -3736, -652, -449, 2099, -3587, 3037, -2326, 817, -1616, -1978, -2155, -1278, -4061, -211, 3154, -4419, 2167, -1526, -1700, -1755, -186, -2027, 1863, 875, -2045, -2405, 2984, 2118, -4585, 1303, 3578, -351, -1451, -718, 3115, -3188, -1036, -1186];
+    //let mut values2: Vec<i32> = vec![-927, 2333, 2323, 1912, -1068, 3208, -1487, -705, -2409, -743, -1206, 3023, -3736, -652, -449, 2099, -3587, 3037, -2326, 817, -1616, -1978, -2155, -1278, -4061, -211, 3154, -4419, 2167, -1526, -1700, -1755, -186, -2027, 1863, 875, -2045, -2405, 2984, 2118, -4585, 1303, 3578, -351, -1451, -718, 3115, -3188, -1036, -1186];
 
     let length = values.len();
 
     if  length > 1{
-        //quicksort(&mut values, 0, length - 1);
-        block_quicksort(&mut values);
-        insertionsort(&mut values2, 0, length - 1);
+        block_quicksort(&mut values, log_2(length-1));
+        //insertionsort(&mut values);
     }
     
     //assert_eq!(values,values2, "The thing failed");
 
-    let mut output = String::with_capacity(line.len());
+    //let mut output = String::with_capacity(line.len());
+    line = "".to_string();
     for value in values {
-        output.push_str(&value.to_string());
-        output.push_str(" ");
+        line.push_str(&value.to_string());
+        line.push_str(" ");
     }
-    println!("{}", output);
+    println!("{}", line);
 }
 
 
-pub fn insertionsort(arr:&mut [i32], start:usize, end:usize){
-    for i in (start+1)..(end+1) {
+pub fn median_of_three_partition(arr:&mut [i32]) -> usize{
+    let start = 0;
+    let end = arr.len()-1;
+    let mid = ( start + end) / 2;
+
+    if arr[start] <= arr[mid]{
+        if arr[mid] > arr[end]{
+            if arr[start] < arr[end]{
+                return end;
+            }else{
+                return start;
+            }
+        }else{
+            return mid;
+        }
+    }else{
+        if arr[mid] < arr[end]{
+            if arr[start] < arr[end]{
+                return start;
+            }else{
+                return end;
+            }
+        }else{
+            return mid;
+        }
+    }
+}
+
+pub fn insertionsort(arr:&mut [i32]){
+
+    for i in 1..arr.len() {
         let cmp_value = arr[i as usize];
         let mut j:isize = i as isize - 1;
 
-        while j >= start as isize && arr[j as usize] > cmp_value {
+        while j >= 0 as isize && arr[j as usize] > cmp_value {
             arr[(j + 1) as usize] = arr[j as usize];
             j -= 1;
         }
@@ -62,62 +93,72 @@ pub fn insertionsort(arr:&mut [i32], start:usize, end:usize){
 }
 
 
-pub fn quicksort(arr:&mut Vec<i32>,start:usize, end:usize){
+//TODO make a pick_pivot function that picks the pivot in a good way, maybe that will speed things up a bit
 
-    if start >= end{
-        return
-    }
-        
-    if end - start <= block_size{
-        insertionsort(arr, start, end);
-        return;
-    }
-    //median_of_three_partition(arr);
-    //let pivot = block_partition(arr, start, end);
-
-    //quicksort(arr, start, pivot);
-    //quicksort(arr, pivot + 1, end);
-}
-
-pub fn block_quicksort(arr:&mut Vec<i32>){
+pub fn block_quicksort(arr:&mut Vec<i32>, limit: u32){
 
     if arr.len() > 0{
-        let limit = usize::BITS - arr.len().leading_zeros();
-        block_rec(&mut arr[..], None, 0);
+        block_rec(&mut arr[..], None ,limit);
     }
 
 }
 
-fn block_rec<'a>(mut arr: &'a mut [i32], mut pred: Option<&'a i32>, mut limit: u32){
-    const ins_max: usize = 20;
+
+	//Implementation based on Tuned Quicksort (Elmasry, Katajainen, Stenmark)
+    // And rust-lang (which copied this paper) version of quicksort
+	//available at http://www.diku.dk/~jyrki/Myris/Kat2014S.html
+
+fn block_rec<'a>(mut arr: &'a mut [i32], mut pred: Option<&'a i32>,mut limit: u32){
+    const INS_MAX: usize = 32;
 
     let mut was_balanced = true;
     let mut was_partitioned = true;
 
     loop {
 
-        println!("main loop arr is {:#?}", arr);
-
         let len = arr.len();
 
-        if len <= ins_max{
-            insertionsort(arr, 0, len - 1);
+        if len <= INS_MAX{
+            insertionsort(arr);
             return;
         }
 
-        let pivot = arr.len() - 1;
+        if limit == 0{
+            heapsort(arr);
+            return;
+        }
+
+        if !was_balanced{
+            break_patterns(arr);
+            limit -= 1;
+        }
+
+        let pivot = median_of_three_partition(arr);
+
+
+        if let Some(p) = pred {
+            if !is_less(p, &arr[pivot]){
+                let mid = part_equal(arr, pivot);
+
+                arr = &mut arr[mid..];
+                continue;
+            }
+        }
+
         let mid = partition(arr, pivot);
+
+        was_balanced = cmp::min(mid, len - mid) >= len / 8;
 
         let (left, right) = arr.split_at_mut(mid);
         let (pivot, right) = right.split_at_mut(1);
         let pivot = &pivot[0];
 
         if left.len() < right.len(){
-            block_rec(left, pred, 0);
+            block_rec(left, pred,limit);
             arr = right;
             pred = Some(pivot);
         } else{
-            block_rec(right, Some(pivot), 0);
+            block_rec(right, Some(pivot), limit);
             arr = left;
         }
 
@@ -125,7 +166,51 @@ fn block_rec<'a>(mut arr: &'a mut [i32], mut pred: Option<&'a i32>, mut limit: u
 
 }
 
-fn partition(mut arr: &mut [i32], pivot:usize) -> usize{
+//Does not decrease time :/
+fn break_patterns(arr: &mut [i32]){
+    let len = arr.len();
+
+    if len >= 8{
+
+        //Pseudorandom number generator from the "Xorshift RNGs" paper by George Marsaglia.
+        //Not mine
+        let mut random = len as u32;
+        let mut gen_u32 = || {
+            random ^= random << 13;
+            random ^= random >> 17;
+            random ^= random << 5;
+            random
+        };
+        let mut gen_usize = || {
+            if 64 <= 32 {
+                gen_u32() as usize
+            } else {
+                (((gen_u32() as u64) << 32) | (gen_u32() as u64)) as usize
+            }
+        };
+
+        let modo = len.next_power_of_two();
+
+        let pos  = len / 4 * 2;
+
+        for i in 0..3 {
+            let mut other = gen_usize() & (modo - 1);
+
+            if other >= len {
+                other -= len;
+            }
+
+            arr.swap(pos - 1 + i, other);
+
+        }
+
+    }
+}
+
+
+//Tried to follow / implement this paper of block-quicksort https://dl.acm.org/doi/10.1145/3274660 
+//Also got "some" inspiration from the rust-lang quicksort (unstable-sort)
+fn partition(arr: &mut [i32], pivot:usize) -> usize{
     let mid:usize = {
         arr.swap(0, pivot);
         let (pivot, arr) = arr.split_at_mut(1);
@@ -133,9 +218,12 @@ fn partition(mut arr: &mut [i32], pivot:usize) -> usize{
 
         //Gör kanske något fancy med pointers??
 
+        let tmp = mem::ManuallyDrop::new(unsafe{ptr::read(pivot)});
+        //let _pivot_guard = CopyOnDrop{src:&*tmp, dest: pivot};
+        let pivot = &*tmp;
+
         let mut l = 0;
         let mut r = arr.len();
-
         unsafe{
             while l < r && arr.get_unchecked(l) < pivot{
                 l += 1;
@@ -146,7 +234,7 @@ fn partition(mut arr: &mut [i32], pivot:usize) -> usize{
             }
         }
 
-        l + block_partition(&mut arr[l..r])
+        l + part_block(&mut arr[l..r], pivot)
 
     };
 
@@ -156,196 +244,242 @@ fn partition(mut arr: &mut [i32], pivot:usize) -> usize{
 
 }
 
+fn part_equal(arr: &mut [i32], pivot: usize) -> usize{
 
+    arr.swap(0, pivot);
+    let (pivot, arr) = arr.split_at_mut(1);
+    let pivot = &mut pivot[0];
 
-pub fn block_partition(mut arr:&mut [i32]) -> usize{
+    let tmp = mem::ManuallyDrop::new(unsafe { ptr::read(pivot) });
+    //let _pivot_guard = CopyOnDrop { src: &*tmp, dest: pivot };
+    let pivot = &*tmp;
 
-    println!("{:#?}", arr);
+    let mut l = 0;
+    let mut r = arr.len();
 
-    let mut len = arr.len();
-
-    if len <= 1{
-        return 0;
-    }
-
-    let mut start = 0;
-    let mut end = len;
-
-    let mut pivot_pos = end - 1;
-    let mut pivot = arr[pivot_pos];
-
-    let mut index_left:[usize;block_size] = [0; block_size];
-    let mut index_right:[usize;block_size] = [0; block_size];
-
-    let mut last = end - 1;
-
-    arr.swap(pivot_pos, last);
-
-    pivot_pos = last;
-    last -= 1;
-
-    let mut start_left = 0;
-    let mut start_right = 0;
-
-    let mut num_left = 0;
-    let mut num_right = 0;
-
-    let mut num = 0;
-
-    while last - start + 1 > 2 * block_size{
-        if num_left == 0{
-            start_left = 0;
-            let mut j = 0;
-            while j < block_size{
-                index_left[num_left] = j;
-                num_left += (arr[j] >= pivot) as usize;
-                j += 1;
+    loop{
+        unsafe{
+            while l < r && !is_less(pivot, arr.get_unchecked(l)){
+                l += 1;
             }
-        }
-        if num_right == 0{
-            start_right = 0;
-            let mut j = 0;
-            while j < block_size{
-                index_right[num_right] = j;
-                num_right += (pivot >= arr[last-j]) as usize;
-                j += 1;
+
+            while l < r && is_less(pivot, arr.get_unchecked(r-1)){
+                r -= 1;
             }
+
+            if l >= r{
+                break;
+            }
+
+            r -= 1;
+
+            arr.swap(l, r);
+            l += 1;
         }
-        num = cmp::min(num_left, num_right);
-        
-        let mut j = 0;
-        while j < num{
-            arr.swap(start + index_left[start_left + j], last - index_right[start_right + j]);
-            j += 1;
-        }
-
-        num_left -= num;
-        num_right -= num;
-
-        start_left += num;
-        start_right += num;
-        if num_left == 0 {start += block_size}
-        if num_right == 0 {last -= block_size}
-
     }
 
-    let mut shift_right = 0;
-    let mut shift_left = 0;
-
-    if num_right == 0 && num_left == 0{
-
-        
-        shift_left = ((last - start ) + 1) / 2;
-        shift_right = (last - start) + 1 - shift_left;
-
-        start_left = 0;
-        start_right = 0;
-        let mut j = 0;
-        while j < shift_left{
-            index_left[num_left] = j;
-            num_left += (arr[j] >= pivot) as usize;
-
-            index_right[num_right] = j;
-            num_right += (pivot >= arr[last-j]) as usize;
-            j += 1;
-        }
-
-        if shift_left < shift_right{
-            index_right[num_right] = (shift_right - 1);
-            num_right += (pivot >= arr[last-shift_right+1]) as usize;
-        }
-
-    }
-    else if num_right != 0{
-        shift_left = (last - start) - block_size + 1;
-        shift_right = block_size;
-        start_left = 0;
-        
-        let mut j = 0;
-        while j < shift_left{
-            index_left[num_left] = j;
-            num_left += (arr[j] >= pivot) as usize;
-            j += 1;
-        }
-
-    }else{
-        shift_left = block_size;
-        shift_right = (last - start) - block_size + 1;
-
-        start_right = 0;
-
-        let mut j = 0;
-        while j < shift_right{
-            index_right[num_right] = j;
-            num_right += (pivot >= arr[last-j]) as usize;
-            j += 1;
-        }
-
-    }
-
-    num = cmp::min(num_left, num_right);
-
-    if num > 0{
-        num -= 1;
-    }
-
-    let mut j = 0;
-    while j < num{
-        arr.swap(start + index_left[(start_left + j)], last - index_right[(start_right + j)]);
-        j += 1;
-    }
-
-    num_left -= num;
-    num_right -= num;
-
-    start_left += num;
-    start_right += num;
-    if num_left == 0 {start += shift_left}
-    if num_right == 0 {last -= shift_right}
-
-    if num_left != 0{
-        //TODO get it to work, change everything so lower_i can be isize
-        let mut lower_i = (start_left + num_left - 1);
-        let mut upper = (last - start);
-
-        while lower_i > start_left && index_left[lower_i as usize] == upper{
-            upper -= 1;
-            lower_i -= 1;
-        }
-        while lower_i > start_left{
-            upper -= 1;
-            lower_i -= 1;
-            arr.swap((start + upper) as usize, start + index_left[lower_i as usize]);
-        }
-
-        let swap_in = (start + upper + 1) as usize;
-        arr.swap(pivot_pos, swap_in);
-        return swap_in;
-
-    }else if num_right != 0{
-        let mut lower_i = (start_right + num_right - 1);
-        let mut upper = (last - start);
-        
-        while lower_i > start_right && index_right[lower_i as usize] == upper{
-            upper -= 1;
-            lower_i -= 1;
-        }
-
-        while lower_i > start_right {
-            upper -= 1;
-            lower_i -= 1;
-            //This thing apparently does it so the index goes to 100, but len is 100 so kinda bad..
-            arr.swap((last - upper) as usize, last - index_right[lower_i as usize]);
-        }
-        let swap_in = (last - upper) as usize;
-        arr.swap(pivot_pos, swap_in);
-        return swap_in;
-
-    } else{
-        arr.swap(pivot_pos, start);
-        return start;
-    }
-
+    l + 1
 
 }
 
+fn is_less(l: &i32, r: &i32) -> bool{
+    if l < r{
+        true
+    }else{
+        false
+    }
+}
+
+//Right now literally just the parition from rust-langs unstable_sort
+
+// TODO instead of using fucky pointers, use fucky indexes
+// You know that everyelement is an i32
+// And so on so get to work you lazy piece
+
+fn part_block(arr: &mut [i32], pivot: &i32) -> usize{
+    const BLOCK: usize = 128;
+
+    let mut l = 0;
+    let mut block_l = BLOCK;
+    let mut start_l = 0;
+    let mut end_l = 0;
+    let mut offsets_l = [0; BLOCK];
+
+    let mut r = arr.len();
+    let mut block_r = BLOCK;
+    let mut start_r = 0;
+    let mut end_r = 0;
+    let mut offsets_r = [0; BLOCK];
+
+    loop {
+        let is_done = r-l <= 2 * BLOCK;
+
+        if is_done {
+            let mut rem = r - l;
+            if start_l < end_l || start_r < end_r {
+                rem -= BLOCK;
+            }
+
+            if start_l < end_l {
+                block_r = rem;
+            } else if start_r < end_r {
+                block_l = rem;
+            } else {
+                block_l = rem / 2;
+                block_r = rem - block_l;
+            }
+        }
+
+        if start_l == end_l {
+            start_l = 0; //Index of offsets_l
+            end_l = start_l; //Index of end of offsets_l
+            let mut elem = l;
+
+            for i in 0..block_l {
+                    offsets_l[end_l] = i as usize;
+                    end_l += !is_less(&arr[elem], pivot) as usize;
+                    elem += 1;
+            }
+        }
+
+        if start_r == end_r {
+            start_r = 0; //Index of start of offsets_r
+            end_r = start_r;
+            let mut elem = r;
+
+            for i in 0..block_r {
+                    elem -= 1;
+                    offsets_r[end_r] = i as usize;
+                    end_r += is_less(&arr[elem], pivot) as usize;
+            }
+        }
+
+        let count = cmp::min(end_l - start_l, end_r - start_r);
+
+        if count > 0 {
+            macro_rules! left {
+                () => {
+                    l + offsets_l[start_l]
+                };
+            }
+            macro_rules! right {
+                () => {
+                    r - (offsets_r[start_r]) - 1
+                };
+            }
+                let tmp = arr[left!() as usize];
+
+                //Kopiera ett element från offsets_r[start_r] till offsets_l[]
+                //Vet dock inte exakt hur just den här delen fungerar
+                //ptr::copy_nonoverlapping(right!(), left!(), 1);
+
+                //Rätt säker att det är den här delen av koden som inte fungerar ://
+
+                arr[left!()] = arr[right!()];
+
+                for _ in 1..count {
+                    start_l += 1;
+                    //ptr::copy_nonoverlapping(left!(), right!(), 1);
+                    arr[right!()] = arr[left!()];
+                    start_r += 1;
+                    //ptr::copy_nonoverlapping(right!(), left!(), 1);
+                    arr[left!()] = arr[right!()];
+                }
+
+                //ptr::copy_nonoverlapping(&tmp, right!(), 1);
+                //offsets_r.push(tmp);
+                arr[right!()] = tmp;
+                //mem::forget(tmp);
+                start_l += 1;
+                start_r += 1;
+        }
+
+        if start_l == end_l {
+            l += block_l as usize;
+        }
+
+        if start_r == end_r {
+            r -= block_r as usize;
+        }
+
+        if is_done {
+            break;
+        }
+    }
+
+
+    if start_l < end_l {
+        while start_l < end_l {
+                end_l -= 1;
+                arr.swap(l + (offsets_l[end_l]), r - 1);
+                r -= 1;
+        }
+        //width(v.as_mut_ptr(), r)
+        //Borde då vara första r - first index = r - 0 = r
+        r
+    } else if start_r < end_r {
+        while start_r < end_r {
+                end_r -= 1;
+                arr.swap(l, r - (offsets_r[end_r]) - 1);
+                l += 1;
+        }
+        //width(v.as_mut_ptr(), l)
+        //Samma som med r
+        l
+    } else {
+        //width(v.as_mut_ptr(), l)
+        l
+    }
+
+}
+
+const fn num_bits<T>() -> usize { std::mem::size_of::<T>() * 8 }
+
+fn log_2(x: usize) -> u32 {
+    num_bits::<usize>() as u32 - x.leading_zeros() - 1
+}
+
+fn heapify(arr: &mut [i32], end:usize){
+    let last_parent = end - 2 / 2;
+    for i in (0..=last_parent).rev(){
+        move_down(arr, i);
+    }
+
+}
+
+pub fn heapsort(arr: &mut [i32]){
+    let end = arr.len();
+    if end <= 1 {
+        return;
+    }
+    heapify(arr, end);
+
+    for i in (1..end).rev(){
+        arr.swap(0, i);
+        move_down(&mut arr[..i], 0);
+    }
+}
+
+fn move_down(arr: &mut [i32], mut root:usize){
+
+    let last = arr.len() - 1;
+
+    loop{
+        let left = 2*root + 1;
+        if left > last{
+            break;
+        }
+        let right = left + 1;
+        let max = if right <= last && arr[right] > arr[left]{
+            right
+        }else{
+            left
+        };
+
+        if arr[max] > arr[root] {
+            arr.swap(root, max);
+        }
+        root = max;
+
+    }
+}
